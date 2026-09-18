@@ -13,6 +13,8 @@ if "current_id" not in st.session_state:
     st.session_state.current_id = CHAPTER_ORDER[0]
 if "quiz" not in st.session_state:
     st.session_state.quiz = {}  # (chapter_id, q_idx) -> {"attempts": int, "revealed": bool, "solved": bool}
+if "quiz_version" not in st.session_state:
+    st.session_state.quiz_version = {}  # chapter_id -> int, bumped on reset to force radios to clear
 
 
 def quiz_key(chapter_id, q_idx):
@@ -28,6 +30,12 @@ def get_quiz_state(chapter_id, q_idx):
 
 def go_to(chapter_id):
     st.session_state.current_id = chapter_id
+
+
+def reset_quiz(chapter_id, num_questions):
+    st.session_state.quiz_version[chapter_id] = st.session_state.quiz_version.get(chapter_id, 0) + 1
+    for q_idx in range(num_questions):
+        st.session_state.quiz.pop(quiz_key(chapter_id, q_idx), None)
 
 
 # ---------- sidebar: free navigation ----------
@@ -82,8 +90,20 @@ for i, step in enumerate(chapter["practice"], start=1):
 st.divider()
 
 # --- Quiz ---
-st.subheader("Quick check")
-st.caption("2 attempts per question, then the correct answer is shown. This doesn't block you from moving on.")
+quiz_header_col, quiz_reset_col = st.columns([4, 1])
+with quiz_header_col:
+    st.subheader("Quick check")
+    st.caption("2 attempts per question, then the correct answer is shown. This doesn't block you from moving on.")
+with quiz_reset_col:
+    st.button(
+        "Reset quiz",
+        key=f"reset_{chapter['id']}",
+        on_click=reset_quiz,
+        args=(chapter["id"], len(chapter["quiz"])),
+        use_container_width=True,
+    )
+
+quiz_version = st.session_state.quiz_version.get(chapter["id"], 0)
 
 for q_idx, q in enumerate(chapter["quiz"]):
     state = get_quiz_state(chapter["id"], q_idx)
@@ -93,7 +113,7 @@ for q_idx, q in enumerate(chapter["quiz"]):
         "Choose one:",
         options=q["options"],
         index=None,
-        key=f"radio_{chapter['id']}_{q_idx}",
+        key=f"radio_{chapter['id']}_{q_idx}_{quiz_version}",
         label_visibility="collapsed",
         disabled=state["solved"] or state["revealed"],
     )
@@ -102,7 +122,7 @@ for q_idx, q in enumerate(chapter["quiz"]):
     with col1:
         check_clicked = st.button(
             "Check answer",
-            key=f"check_{chapter['id']}_{q_idx}",
+            key=f"check_{chapter['id']}_{q_idx}_{quiz_version}",
             disabled=state["solved"] or state["revealed"] or choice is None,
         )
 
