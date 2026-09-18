@@ -1,0 +1,172 @@
+EXCEL LEARNING COURSE - PROJECT PLAN
+=====================================
+(Handoff brief for continuing this build in Claude Code / VS Code)
+
+
+1. WHAT THIS IS
+----------------
+A self-paced beginner Excel course, delivered as a web app.
+- Target learner: complete beginners, age 13 and up.
+- Format: 14 units, ~92 chapters total (final count flexible - depth over
+  a fixed number). Each chapter = roughly 1 hour of learning + 1 hour of
+  self-directed practice.
+- Full syllabus arc: Excel basics -> formulas -> lookups -> pivot tables
+  -> Power Query -> macros/VBA -> capstone project.
+
+
+2. TECH STACK (decided)
+------------------------
+- Streamlit (Python) web app - single app, multi-chapter, one URL.
+- NO login, NO database, NO user accounts.
+- NO file upload/download, NO server-side grading of practice work.
+- Deployment target: GitHub repo -> Streamlit Community Cloud (free tier).
+  Push code to a GitHub repo, connect it at share.streamlit.io, done.
+  No Docker, no server config, no secrets/API keys needed (nothing to
+  authenticate against - the app has no backend).
+
+
+3. WHY THIS SHAPE (design history - do not silently reintroduce complexity)
+-----------------------------------------------------------------------------
+Earlier approaches were tried and explicitly rejected:
+
+a) Excel-workbook-only delivery (course content AS a giant .xlsx with
+   Notes/Example/Practice/Solution sheets per chapter, self-grading via
+   hidden helper sheets and formulas).
+   Rejected because:
+   - Not engaging for a young learner - just looks like a spreadsheet,
+     no real UI.
+   - No way to enforce/guide chapter order - learner can jump to any
+     sheet.
+   - Learner can accidentally edit/delete the instructional content,
+     permanently breaking their copy, with no reset.
+   - Redundant instructions ("open Excel on your computer") made no
+     sense when the course itself WAS the Excel file the learner had
+     open.
+   - Also hit real technical problems worth remembering: openpyxl
+     workbooks that get round-tripped through LibreOffice (e.g. for
+     formula validation) can come out with corrupted internal
+     hyperlinks and mangled sheet-visibility states, triggering
+     Microsoft Excel's "we found a problem with some content" repair
+     dialog. If Excel files are ever reintroduced later (see section 6),
+     validate formulas on a disposable COPY only - never re-save the
+     shipped file through LibreOffice.
+
+b) Full evaluation/verification layer (learner uploads completed
+   practice files, app grades them server-side; login + database to
+   track per-user progress and scores across devices).
+   Rejected as over-scoped for where this project is right now.
+   Explicitly descoped: no accounts, no stored progress, no grading.
+
+Current shape is deliberately minimal: notes to read, a practice task
+to try (unchecked, honor system), a quiz to self-check understanding
+(does not gate anything). Keep it this simple unless the user explicitly
+asks to add accounts, storage, or file-based grading back in.
+
+
+4. APP ARCHITECTURE
+--------------------
+Files (already scaffolded - see attached):
+- app.py         Streamlit UI and page logic. No business logic lives
+                  in content.py beyond a flat-list helper.
+- content.py      All course content as plain Python data (no CMS, no
+                  external content source). One dict per chapter.
+- requirements.txt   Just "streamlit" - nothing else installed.
+
+Chapter data shape (see content.py for the real thing):
+    {
+      "id": "U1C1",              # stable id, e.g. "U<unit>C<chapter>"
+      "num": 1,                  # chapter number within its unit
+      "title": "...",
+      "notes": ["bullet", ...],          # theory, rendered as bullets
+      "practice": ["step 1", "step2"],   # numbered, do-it-yourself in
+                                          # real Excel, never checked
+      "quiz": [
+          {"q": "...", "options": ["A","B","C","D"], "answer": 0},
+          ...
+      ],
+    }
+
+UNITS is a list of {num, title, chapters: [...]}. Units with an empty
+chapters list render as "(coming soon)" in the sidebar and are simply
+skipped by the flat chapter list used for navigation/progress.
+
+Quiz behaviour (implemented in app.py, per-question, in-memory only via
+st.session_state - resets on page refresh, which is fine, nothing is
+meant to persist):
+- Learner picks an option, clicks "Check answer".
+- Attempt 1 wrong -> "Not quite - one more try."
+- Attempt 2 wrong -> correct answer is revealed.
+- Correct at any point -> "Correct." (locks the question, no more
+  attempts needed).
+- None of this blocks the "Done - Next Chapter" button. There is no
+  pass/fail condition anywhere in the app.
+
+Navigation: fully open. Sidebar lists every unit (expandable) and every
+chapter as a button; the learner can jump anywhere at any time. No
+locking, no prerequisites enforced by the app.
+
+
+5. CURRENT STATUS
+------------------
+DONE:
+- App shell (app.py) - sidebar navigation, notes/practice/quiz
+  rendering, progress bar (cosmetic only, not stored), Done button.
+- Unit 1 "Getting Started" - all 8 chapters fully written (notes,
+  practice steps, 4 quiz questions each):
+    1. What is Excel & What It's Used For
+    2. Interface Tour: Ribbon, Tabs, Quick Access Toolbar
+    3. Workbooks, Worksheets & File Structure
+    4. Navigating Cells, Rows, Columns & Ranges
+    5. Entering & Editing Data
+    6. Copy, Cut, Paste & Paste Special
+    7. Undo/Redo, AutoSave & File Formats
+    8. Essential Keyboard Shortcuts
+
+NOT YET DONE:
+- Units 2-14 are stubbed (title only, empty chapters list) in
+  content.py. Same schema as Unit 1 - just needs content authored and
+  appended to each unit's "chapters" list.
+- Planned unit titles (subject to change):
+    2. Formatting & Sheet Management
+    3. Formula Foundations
+    4. Logical & Text Functions
+    5. Conditional Functions & Data Rules
+    6. Organizing & Cleaning Data
+    7. Lookup & Reference Functions
+    8. Tables, Named Ranges & Dynamic Arrays
+    9. Charts & Visualization
+    10. What-If Analysis & Financial Basics
+    11. Pivot Tables & Dashboards
+    12. Power Query
+    13. Macros & VBA
+    14. Capstone
+- No visual/branding polish done yet (default Streamlit look).
+- Not yet pushed to GitHub or deployed.
+
+
+6. OPEN QUESTIONS / FUTURE DECISIONS (not yet settled - ask before
+   building, do not assume)
+---------------------------------------------------------------------
+- From Unit 3 onward, chapters teach real formulas/functions. The
+  practice task will ask the learner to build something in their own
+  Excel - still unchecked per current scope, but worth flagging that a
+  richer format for that section (screenshots, before/after tables)
+  may be wanted once we get there.
+- If login/progress-tracking or file-based grading is ever reconsidered,
+  treat it as a new decision to confirm with the user first - it was
+  explicitly removed once already.
+- No visual design direction has been chosen yet beyond "make it
+  attention-grabbing, not just a plain spreadsheet feel" (the original
+  complaint that killed the Excel-only approach). Worth a deliberate
+  pass on layout/color/icons before this goes live.
+
+
+7. DEPLOYMENT (when ready)
+----------------------------
+1. Create a GitHub repo (public or private both work).
+2. Add app.py, content.py, requirements.txt to it.
+3. Sign in at share.streamlit.io with the same GitHub account.
+4. "New app" -> pick the repo, branch, and app.py as entry point.
+5. Deploy. Public URL looks like <name>.streamlit.app.
+Note: free tier sleeps after inactivity (~20-30s wake-up on first
+visit of the day) - not an error, just a delay.
